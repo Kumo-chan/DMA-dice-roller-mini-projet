@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">dice-roller</string>
+
+    <string name="ble_menu_scan_start">Recherche</string>
+    <string name="ble_menu_scan_stop">Annuler</string>
+    <string name="ble_menu_disconnect">Déconnexion</string>
+
+    <string name="ble_scan_results_empty">Veuillez lancer le scan <i>Bluetooth Low Energy</i> en appuyant ci-dessus</string>
+
+    <string name="ble_currenttime_title">Current time</string>
+    <string name="ble_currenttime_set">Set time</string>
+    <string name="ble_clickcounter_title">Click counter</string>
+    <string name="ble_temperature_title">Température</string>
+    <string name="ble_temperature_read">Read</string>
+    <string name="ble_sendvalue_title">Envoi de valeur</string>
+    <string name="ble_sendvalue_send">Send</string>
+    <string name="temperature">Temperature:</string>
+    <string name="set_current_time">Set Current Time</string>
+    <string name="current_time">Current Time:</string>
+    <string name="read">Read</string>
+    <string name="button_clicks">Button Clicks:</string>
+    <string name="send_integer_value">Send Integer Value:</string>
+    <string name="enter_an_integer">Enter an integer</string>
+    <string name="send">Send</string>
+
+</resources>
