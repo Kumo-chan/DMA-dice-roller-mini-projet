@@ -1,15 +1,16 @@
-package ch.heigvd.iict.dma.roller
+package ch.heigvd.iict.dma.dice.roller
 
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
 import ch.heigvd.iict.dma.dice.roller.databinding.ActivityMainBinding
 
-class MainActivity : AppCompatActivity() {
+
+class MainActivity : ComponentActivity() {
 
     private var handler = Handler(Looper.getMainLooper())
 
@@ -18,8 +19,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
         // we request permissions
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -34,6 +33,7 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.BLUETOOTH,
                 Manifest.permission.BLUETOOTH_ADMIN))
         }
+
 
 
     }

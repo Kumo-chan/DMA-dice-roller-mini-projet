@@ -51,5 +51,8 @@ dependencies {
     //https://github.com/NordicSemiconductor/Android-BLE-Library - BSD 3-Clause License
     implementation(libs.ble)
     implementation(libs.ble.ktx)
+    implementation(libs.androidx.runtime.android)
+    implementation(libs.androidx.ui.tooling.preview.android)
+    implementation(libs.androidx.material3.android)
 
 }
