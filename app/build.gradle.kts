@@ -50,9 +50,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.livedata.ktx)
 
-    //https://github.com/NordicSemiconductor/Android-BLE-Library - BSD 3-Clause License
-    implementation(libs.ble)
-    implementation(libs.ble.ktx)
     implementation(libs.androidx.runtime.android)
     implementation(libs.androidx.ui.tooling.preview.android)
     implementation(libs.androidx.material3.android)
@@ -67,4 +64,8 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+
+    // Google nearby connections
+    implementation(libs.play.services.location)
+    implementation(libs.play.services.nearby)
 }
