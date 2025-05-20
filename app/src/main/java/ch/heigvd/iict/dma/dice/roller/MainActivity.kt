@@ -5,6 +5,7 @@ import Roll
 import RollsResult
 import android.Manifest
 import android.content.pm.PackageManager
+import android.opengl.GLSurfaceView
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -21,9 +22,11 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import ch.heigvd.iict.dma.dice.roller.roll.Roller
+import ch.heigvd.iict.dma.dice.roller.opengl.MyGLSurfaceView
 import ch.heigvd.iict.dma.dice.roller.ui.Layout
 
 class MainActivity : ComponentActivity() {
+    private lateinit var gLView: GLSurfaceView
 
     private val layout = Layout()
 
@@ -73,6 +76,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        gLView = MyGLSurfaceView(this)
+
         setContent {
             val history by viewModel.history.collectAsState()
             layout.MainLayout(
@@ -93,7 +99,8 @@ class MainActivity : ComponentActivity() {
                     for (endpointId in connectedEndpointIds) {
                         nearbyManager.sendHello(endpointId, newUsername)
                     }
-                }
+                },
+                glSurfaceView = gLView as MyGLSurfaceView?
             )
         }
 

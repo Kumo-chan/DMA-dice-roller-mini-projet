@@ -10,6 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import ch.heigvd.iict.dma.dice.roller.opengl.MyGLSurfaceView
 
 class Layout {
 
@@ -23,7 +25,8 @@ class Layout {
         rollsResults: List<RollsResult>,
         onRollDice: (diceSize: Int, diceCount: Int) -> Unit,
         username: String = "User",
-        onUsernameChanged: (String) -> Unit = {}
+        onUsernameChanged: (String) -> Unit = {},
+        glSurfaceView: MyGLSurfaceView? = null
     ) {
         var selectedTab by remember { mutableStateOf(Tab.DICE_ROLLER) }
 
@@ -53,15 +56,31 @@ class Layout {
             Column(
                 modifier = Modifier
                     .padding(paddingValues)
-                    .padding(16.dp)
                     .fillMaxSize()
             ) {
-                when (selectedTab) {
-                    Tab.DICE_ROLLER -> RollerTab(rollsResults, onRollDice)
-                    Tab.SETTINGS -> SettingsTab(
-                        username = username,
-                        onUsernameChanged = onUsernameChanged,
-                        rollsResults = rollsResults
+                // First half of the screen for the tabs content
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                ) {
+                    when (selectedTab) {
+                        Tab.DICE_ROLLER -> RollerTab(rollsResults, onRollDice)
+                        Tab.SETTINGS -> SettingsTab(
+                            username = username,
+                            onUsernameChanged = onUsernameChanged,
+                            rollsResults = rollsResults
+                        )
+                    }
+                }
+
+                glSurfaceView?.let { surfaceView ->
+                    AndroidView(
+                        factory = { surfaceView },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
                     )
                 }
             }
