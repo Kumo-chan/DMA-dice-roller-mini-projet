@@ -20,6 +20,9 @@ import com.google.android.gms.tasks.OnSuccessListener
 
 import RollsResult
 import com.google.gson.Gson
+import java.io.IOException
+import kotlin.collections.remove
+import kotlin.text.contains
 
 sealed class NearbyMessage {
     data class HelloMessage(val username: String) : NearbyMessage()
@@ -58,12 +61,19 @@ class NearbyManager(private val context: Activity) {
         fun onHelloMessageReceived(endpointId: String, username: String)
         fun onRollResultReceived(endpointId: String, rollResult: RollsResult)
         fun onDeviceDisconnected(endpointId: String)
+        fun getUsername(): String
     }
 
     private val STRATEGY: Strategy = Strategy.P2P_CLUSTER
     private val SERVICE_ID = "ch.heigvd.iict.dma.dice.roller"
-    private val advertisingOptions : AdvertisingOptions =
+    private val advertisingOptions: AdvertisingOptions =
         AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
+
+    private val activeConnections = mutableSetOf<String>()
+    fun isConnected(endpointId: String): Boolean {
+        return endpointId in activeConnections
+    }
+
 
     // Add a connection listener field
     private var connectionListener: ConnectionListener? = null
@@ -84,13 +94,24 @@ class NearbyManager(private val context: Activity) {
                         val nearbyMessage = NearbyMessage.deserialize(message)
                         when (nearbyMessage) {
                             is NearbyMessage.HelloMessage -> {
-                                Log.d("NearbyManager", "Received hello from: ${nearbyMessage.username}")
-                                connectionListener?.onHelloMessageReceived(endpointId, nearbyMessage.username)
+                                Log.d(
+                                    "NearbyManager",
+                                    "Received hello from: ${nearbyMessage.username}"
+                                )
+                                connectionListener?.onHelloMessageReceived(
+                                    endpointId,
+                                    nearbyMessage.username
+                                )
                             }
+
                             is NearbyMessage.RollResultMessage -> {
                                 Log.d("NearbyManager", "Received roll result from $endpointId")
-                                connectionListener?.onRollResultReceived(endpointId, nearbyMessage.rollResult)
+                                connectionListener?.onRollResultReceived(
+                                    endpointId,
+                                    nearbyMessage.rollResult
+                                )
                             }
+
                             null -> {
                                 Log.e("NearbyManager", "Received invalid message format: $message")
                             }
@@ -113,7 +134,11 @@ class NearbyManager(private val context: Activity) {
             override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
                 // A nearby endpoint was found. You can initiate a connection here.
                 Nearby.getConnectionsClient(context)
-                    .requestConnection(getLocalUserName(), endpointId, connectionLifecycleCallback)
+                    .requestConnection(
+                        connectionListener?.getUsername().toString(),
+                        endpointId,
+                        connectionLifecycleCallback
+                    )
             }
 
             override fun onEndpointLost(endpointId: String) {
@@ -123,20 +148,29 @@ class NearbyManager(private val context: Activity) {
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
-            // Automatically accept the connection on both sides
-            Nearby.getConnectionsClient(context)
-                .acceptConnection(endpointId, payloadCallback)
+            try {
+                // Automatically accept the connection on both sides
+                Nearby.getConnectionsClient(context)
+                    .acceptConnection(endpointId, payloadCallback)
+                    .addOnFailureListener { e ->
+                        Log.e("NearbyManager", "Failed to accept connection", e)
+                    }
 
-            Log.d("NearbyManager", "Connection initiated with endpoint: $endpointId")
+                Log.d("NearbyManager", "Connection initiated with endpoint: $endpointId (${connectionInfo.endpointName})")
+            } catch (e: Exception) {
+                Log.e("NearbyManager", "Exception during connection initiation", e)
+            }
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.STATUS_OK -> {
+                    // Add to active connections set
+                    activeConnections.add(endpointId)
                     // We're connected - send our device name
-                    // TODO get name then send it
-                    sendMessage(endpointId, "hello")
+                    sendHello(endpointId, connectionListener?.getUsername().toString())
                     Log.d("NearbyManager", "Connected to endpoint: $endpointId")
+                    connectionListener?.onDeviceConnected(endpointId, endpointId) // Use actual name if available
                 }
                 ConnectionsStatusCodes.STATUS_CONNECTION_REJECTED -> {
                     Log.d("NearbyManager", "Connection rejected by endpoint: $endpointId")
@@ -149,19 +183,22 @@ class NearbyManager(private val context: Activity) {
             }
         }
 
+
         override fun onDisconnected(endpointId: String) {
             Log.d("NearbyManager", "Disconnected from endpoint: $endpointId")
+            activeConnections.remove(endpointId)
             connectionListener?.onDeviceDisconnected(endpointId)
         }
     }
 
 
-
-
     fun startAdvertising() {
         Nearby.getConnectionsClient(context)
             .startAdvertising(
-                getLocalUserName(), SERVICE_ID, connectionLifecycleCallback, advertisingOptions
+                connectionListener?.getUsername().toString(),
+                SERVICE_ID,
+                connectionLifecycleCallback,
+                advertisingOptions
             )
             .addOnSuccessListener(
                 { unused: Void? ->
@@ -188,24 +225,46 @@ class NearbyManager(private val context: Activity) {
                 })
     }
 
-    private fun getLocalUserName(): String {
-        return "Device_" + android.os.Build.MODEL + "_" + android.os.Build.ID
+    fun stopAdvertising() {
+        Nearby.getConnectionsClient(context)
+            .stopAdvertising()
     }
 
+    fun stopDiscovery() {
+        Nearby.getConnectionsClient(context)
+            .stopDiscovery()
+    }
 
-    fun sendMessage(endpointId: String, message: String) {
+    fun disconnectFromAllEndpoints() {
+        if (activeConnections.isNotEmpty()) {
+            Nearby.getConnectionsClient(context).stopAllEndpoints()
+            activeConnections.clear()
+        }
+    }
 
-        val bytesPayload = Payload.fromBytes(message.toByteArray(Charsets.UTF_8))
+    fun retryConnection(endpointId: String) {
+        Log.d("NearbyManager", "Attempting to reconnect to: $endpointId")
+
+        if (activeConnections.contains(endpointId)) {
+            // Already connected, no need to retry
+            return
+        }
 
         Nearby.getConnectionsClient(context)
-            .sendPayload(endpointId, bytesPayload)
+            .requestConnection(
+                connectionListener?.getUsername().toString(),
+                endpointId,
+                connectionLifecycleCallback
+            )
             .addOnSuccessListener {
-                Log.d("NearbyManager", "Message sent successfully to $endpointId")
+                Log.d("NearbyManager", "Reconnection request successful to: $endpointId")
             }
             .addOnFailureListener { e ->
-                Log.e("NearbyManager", "Failed to send message to $endpointId", e)
+                Log.e("NearbyManager", "Reconnection request failed: ${e.message}")
+                connectionListener?.onConnectionFailed(endpointId, "Reconnection failed: ${e.message}")
             }
     }
+
 
     fun sendHello(endpointId: String, username: String) {
         val message = NearbyMessage.HelloMessage(username)
@@ -220,15 +279,41 @@ class NearbyManager(private val context: Activity) {
 
     // Helper method to send serialized messages
     private fun sendSerializedMessage(endpointId: String, serialized: String) {
-        val bytesPayload = Payload.fromBytes(serialized.toByteArray(Charsets.UTF_8))
+        if (!isConnected(endpointId)) {
+            Log.w("NearbyManager", "Attempted to send message to disconnected endpoint: $endpointId")
+            return
+        }
 
-        Nearby.getConnectionsClient(context)
-            .sendPayload(endpointId, bytesPayload)
-            .addOnSuccessListener {
-                Log.d("NearbyManager", "Message sent successfully to $endpointId")
-            }
-            .addOnFailureListener { e ->
-                Log.e("NearbyManager", "Failed to send message to $endpointId", e)
-            }
+        try {
+            val bytesPayload = Payload.fromBytes(serialized.toByteArray(Charsets.UTF_8))
+
+            Nearby.getConnectionsClient(context)
+                .sendPayload(endpointId, bytesPayload)
+                .addOnSuccessListener {
+                    Log.d("NearbyManager", "Message sent successfully to $endpointId")
+                }
+                .addOnFailureListener { e ->
+                    Log.e("NearbyManager", "Failed to send message to $endpointId", e)
+
+                    // Better error diagnostics
+                    when {
+                        e is IOException && e.message?.contains("closed") == true -> {
+                            Log.w("NearbyManager", "Connection closed, removing endpoint")
+                            activeConnections.remove(endpointId)
+                            connectionListener?.onDeviceDisconnected(endpointId)
+                        }
+                        e.message?.contains("not connected") == true -> {
+                            Log.w("NearbyManager", "Device not connected, removing from active connections")
+                            activeConnections.remove(endpointId)
+                            connectionListener?.onDeviceDisconnected(endpointId)
+                        }
+                        else -> {
+                            Log.e("NearbyManager", "Other send error: ${e.message}")
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            Log.e("NearbyManager", "Exception preparing message", e)
+        }
     }
 }

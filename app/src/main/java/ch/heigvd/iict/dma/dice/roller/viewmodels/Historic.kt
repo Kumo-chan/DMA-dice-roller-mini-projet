@@ -4,9 +4,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class Roll(val diceSize: Number, val diceNumber: Number )
-//TODO add username to roll result
 data class RollResult(val diceSize: Number, val result: Number)
-data class RollsResult(val results: List<RollResult>)
+data class RollsResult(val username: String, val results: List<RollResult>)
 class HistoricViewModel : ViewModel() {
 
     private val _history = MutableStateFlow<List<RollsResult>>(emptyList())

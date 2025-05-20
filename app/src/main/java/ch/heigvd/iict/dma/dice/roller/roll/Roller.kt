@@ -6,13 +6,13 @@ import RollsResult
 import kotlin.random.Random
 
 class Roller {
-    fun roll(roll: Roll) : RollsResult {
+    fun roll(username: String, roll: Roll) : RollsResult {
         val rolls = List(roll.diceNumber.toInt()) {
             RollResult(
                 diceSize = roll.diceSize,
                 result = Random.nextInt(1, roll.diceSize.toInt())
             )
         }
-        return RollsResult(rolls)
+        return RollsResult(username, rolls)
     }
 }

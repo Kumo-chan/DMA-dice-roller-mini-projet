@@ -7,6 +7,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -16,10 +18,10 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import ch.heigvd.iict.dma.dice.roller.roll.Roller
 import ch.heigvd.iict.dma.dice.roller.ui.Layout
-
 
 class MainActivity : ComponentActivity() {
 
@@ -33,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private val connectedDevices = mutableStateMapOf<String, String>()
     private val connectedEndpointIds = mutableSetOf<String>()
     //private val receivedMessages = mutableStateListOf<String>()
+    private var username = mutableStateOf("User")
 
     private val nearbyManager = NearbyManager(this)
     // Create permission launcher
@@ -46,18 +49,61 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val connectionMonitorHandler = Handler(Looper.getMainLooper())
+    private val connectionMonitorRunnable = object : Runnable {
+        override fun run() {
+            // Check if any devices are connected
+            if (connectedEndpointIds.isEmpty()) {
+                // If we should be connected but aren't, restart discovery
+                nearbyManager.stopDiscovery()
+                nearbyManager.stopAdvertising()
+
+                // Add a small delay before restarting
+                connectionMonitorHandler.postDelayed({
+                    nearbyManager.startDiscovery()
+                    nearbyManager.startAdvertising()
+                    Log.d("MainActivity", "Restarted Nearby discovery and advertising")
+                }, 1500)
+            }
+
+            // Schedule next check
+            connectionMonitorHandler.postDelayed(this, 30000) // Check every 30 seconds
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             val history by viewModel.history.collectAsState()
-            layout.MainLayout(rollsResults = history,
+            layout.MainLayout(
+                rollsResults = history,
                 onRollDice = { diceSize, diceCount ->
-                viewModel.addRollsResult(roller.roll(Roll(diceSize, diceCount)))
-            })
+                    val rollResult = roller.roll(username.value, Roll(diceSize, diceCount))
+                    viewModel.addRollsResult(rollResult)
+
+                    // Send roll result to connected devices
+                    for (endpointId in connectedEndpointIds) {
+                        nearbyManager.sendRollResult(endpointId, rollResult)
+                    }
+                },
+                username = username.value,
+                onUsernameChanged = { newUsername ->
+                    username.value = newUsername
+                    // Notify connected devices about username change
+                    for (endpointId in connectedEndpointIds) {
+                        nearbyManager.sendHello(endpointId, newUsername)
+                    }
+                }
+            )
         }
 
+        setupNearbyManager()
         checkAndRequestPermissions()
+        connectionMonitorHandler.post(connectionMonitorRunnable)
 
+    }
+
+    private fun setupNearbyManager() {
         nearbyManager.setConnectionListener(object : NearbyManager.ConnectionListener {
             override fun onDeviceConnected(endpointId: String, deviceName: String) {
                 // Update will now trigger recomposition
@@ -95,7 +141,6 @@ class MainActivity : ComponentActivity() {
 
             override fun onRollResultReceived(endpointId: String, rollsResult: RollsResult) {
                 viewModel.addRollsResult(rollsResult)
-
             }
 
             override fun onDeviceDisconnected(endpointId: String) {
@@ -110,6 +155,10 @@ class MainActivity : ComponentActivity() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+            }
+
+            override fun getUsername(): String {
+                return username.value
             }
         })
 
@@ -157,6 +206,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        connectionMonitorHandler.removeCallbacks(connectionMonitorRunnable)
+        nearbyManager.disconnectFromAllEndpoints()
+        nearbyManager.stopAdvertising()
+        nearbyManager.stopDiscovery()
     }
     private val requestBlePermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
 
