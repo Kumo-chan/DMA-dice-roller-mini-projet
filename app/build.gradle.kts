@@ -68,4 +68,7 @@ dependencies {
     // Google nearby connections
     implementation(libs.play.services.location)
     implementation(libs.play.services.nearby)
+    // Gson
+    implementation(libs.gson)
+
 }

@@ -18,6 +18,36 @@ import com.google.android.gms.nearby.connection.Strategy
 import com.google.android.gms.tasks.OnFailureListener
 import com.google.android.gms.tasks.OnSuccessListener
 
+import RollsResult
+import com.google.gson.Gson
+
+sealed class NearbyMessage {
+    data class HelloMessage(val username: String) : NearbyMessage()
+    data class RollResultMessage(val rollResult: RollsResult) : NearbyMessage()
+
+    companion object {
+        private val gson = Gson()
+
+        fun serialize(message: NearbyMessage): String {
+            val type = when(message) {
+                is HelloMessage -> "HELLO"
+                is RollResultMessage -> "ROLL"
+            }
+            return "$type:${gson.toJson(message)}"
+        }
+
+        fun deserialize(data: String): NearbyMessage? {
+            val parts = data.split(":", limit = 2)
+            if (parts.size != 2) return null
+
+            return when(parts[0]) {
+                "HELLO" -> gson.fromJson(parts[1], HelloMessage::class.java)
+                "ROLL" -> gson.fromJson(parts[1], RollResultMessage::class.java)
+                else -> null
+            }
+        }
+    }
+}
 
 class NearbyManager(private val context: Activity) {
 
@@ -25,9 +55,9 @@ class NearbyManager(private val context: Activity) {
     interface ConnectionListener {
         fun onDeviceConnected(endpointId: String, deviceName: String)
         fun onConnectionFailed(endpointId: String, reason: String)
-        fun onMessageReceived(endpointId: String, message: String)
+        fun onHelloMessageReceived(endpointId: String, username: String)
+        fun onRollResultReceived(endpointId: String, rollResult: RollsResult)
         fun onDeviceDisconnected(endpointId: String)
-
     }
 
     private val STRATEGY: Strategy = Strategy.P2P_CLUSTER
@@ -50,18 +80,28 @@ class NearbyManager(private val context: Activity) {
                 receivedBytes?.let {
                     val message = String(it, Charsets.UTF_8)
 
-                    // Check if it's an initial name payload or a regular message
-                    if (message.startsWith("NAME:")) {
-                        val deviceName = message.substring(5)
-                        Log.d("NearbyManager", "Received device name: $deviceName from $endpointId")
-                        connectionListener?.onDeviceConnected(endpointId, deviceName)
-                    } else {
-                        Log.d("NearbyManager", "Received message: $message from $endpointId")
-                        connectionListener?.onMessageReceived(endpointId, message)
+                    try {
+                        val nearbyMessage = NearbyMessage.deserialize(message)
+                        when (nearbyMessage) {
+                            is NearbyMessage.HelloMessage -> {
+                                Log.d("NearbyManager", "Received hello from: ${nearbyMessage.username}")
+                                connectionListener?.onHelloMessageReceived(endpointId, nearbyMessage.username)
+                            }
+                            is NearbyMessage.RollResultMessage -> {
+                                Log.d("NearbyManager", "Received roll result from $endpointId")
+                                connectionListener?.onRollResultReceived(endpointId, nearbyMessage.rollResult)
+                            }
+                            null -> {
+                                Log.e("NearbyManager", "Received invalid message format: $message")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("NearbyManager", "Error processing message", e)
                     }
                 }
             }
         }
+
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
             // Not needed for simple text messages
         }
@@ -94,6 +134,7 @@ class NearbyManager(private val context: Activity) {
             when (result.status.statusCode) {
                 ConnectionsStatusCodes.STATUS_OK -> {
                     // We're connected - send our device name
+                    // TODO get name then send it
                     sendMessage(endpointId, "hello")
                     Log.d("NearbyManager", "Connected to endpoint: $endpointId")
                 }
@@ -155,6 +196,31 @@ class NearbyManager(private val context: Activity) {
     fun sendMessage(endpointId: String, message: String) {
 
         val bytesPayload = Payload.fromBytes(message.toByteArray(Charsets.UTF_8))
+
+        Nearby.getConnectionsClient(context)
+            .sendPayload(endpointId, bytesPayload)
+            .addOnSuccessListener {
+                Log.d("NearbyManager", "Message sent successfully to $endpointId")
+            }
+            .addOnFailureListener { e ->
+                Log.e("NearbyManager", "Failed to send message to $endpointId", e)
+            }
+    }
+
+    fun sendHello(endpointId: String, username: String) {
+        val message = NearbyMessage.HelloMessage(username)
+        sendSerializedMessage(endpointId, NearbyMessage.serialize(message))
+    }
+
+    // Send a roll result
+    fun sendRollResult(endpointId: String, rollResult: RollsResult) {
+        val message = NearbyMessage.RollResultMessage(rollResult)
+        sendSerializedMessage(endpointId, NearbyMessage.serialize(message))
+    }
+
+    // Helper method to send serialized messages
+    private fun sendSerializedMessage(endpointId: String, serialized: String) {
+        val bytesPayload = Payload.fromBytes(serialized.toByteArray(Charsets.UTF_8))
 
         Nearby.getConnectionsClient(context)
             .sendPayload(endpointId, bytesPayload)

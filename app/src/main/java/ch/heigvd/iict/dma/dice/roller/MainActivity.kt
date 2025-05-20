@@ -2,6 +2,7 @@ package ch.heigvd.iict.dma.dice.roller
 
 import HistoricViewModel
 import Roll
+import RollsResult
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -82,18 +83,19 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            override fun onMessageReceived(endpointId: String, message: String) {
-                val senderName = connectedDevices[endpointId] ?: "Unknown"
-                val formattedMessage = "$senderName: $message"
-
-
+            override fun onHelloMessageReceived(endpointId: String, username: String) {
                 runOnUiThread {
                     Toast.makeText(
                         this@MainActivity,
-                        "New message: $formattedMessage",
+                        "New user connected: $username",
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            }
+
+            override fun onRollResultReceived(endpointId: String, rollsResult: RollsResult) {
+                viewModel.addRollsResult(rollsResult)
+
             }
 
             override fun onDeviceDisconnected(endpointId: String) {
