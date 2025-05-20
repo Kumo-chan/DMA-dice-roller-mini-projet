@@ -16,10 +16,10 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import ch.heigvd.iict.dma.dice.roller.roll.Roller
 import ch.heigvd.iict.dma.dice.roller.ui.Layout
-
 
 class MainActivity : ComponentActivity() {
 
@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
     private val connectedDevices = mutableStateMapOf<String, String>()
     private val connectedEndpointIds = mutableSetOf<String>()
     //private val receivedMessages = mutableStateListOf<String>()
+    private var username = mutableStateOf("User")
 
     private val nearbyManager = NearbyManager(this)
     // Create permission launcher
@@ -50,14 +51,33 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val history by viewModel.history.collectAsState()
-            layout.MainLayout(rollsResults = history,
+            layout.MainLayout(
+                rollsResults = history,
                 onRollDice = { diceSize, diceCount ->
-                viewModel.addRollsResult(roller.roll(Roll(diceSize, diceCount)))
-            })
+                    val rollResult = roller.roll(Roll(diceSize, diceCount))
+                    viewModel.addRollsResult(rollResult)
+
+                    // Send roll result to connected devices
+                    for (endpointId in connectedEndpointIds) {
+                        nearbyManager.sendRollResult(endpointId, rollResult)
+                    }
+                },
+                username = username.value,
+                onUsernameChanged = { newUsername ->
+                    username.value = newUsername
+                    // Notify connected devices about username change
+                    for (endpointId in connectedEndpointIds) {
+                        nearbyManager.sendHello(endpointId, newUsername)
+                    }
+                }
+            )
         }
 
+        setupNearbyManager()
         checkAndRequestPermissions()
+    }
 
+    private fun setupNearbyManager() {
         nearbyManager.setConnectionListener(object : NearbyManager.ConnectionListener {
             override fun onDeviceConnected(endpointId: String, deviceName: String) {
                 // Update will now trigger recomposition
@@ -95,7 +115,6 @@ class MainActivity : ComponentActivity() {
 
             override fun onRollResultReceived(endpointId: String, rollsResult: RollsResult) {
                 viewModel.addRollsResult(rollsResult)
-
             }
 
             override fun onDeviceDisconnected(endpointId: String) {
@@ -110,6 +129,10 @@ class MainActivity : ComponentActivity() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+            }
+
+            override fun getUsername(): String {
+                return username.value
             }
         })
 
@@ -157,6 +180,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        nearbyManager.disconnectFromAllEndpoints()
+        nearbyManager.stopAdvertising()
+        nearbyManager.stopDiscovery()
     }
     private val requestBlePermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
 
