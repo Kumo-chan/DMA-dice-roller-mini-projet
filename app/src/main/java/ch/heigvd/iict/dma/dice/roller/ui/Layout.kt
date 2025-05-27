@@ -154,16 +154,12 @@ class Layout {
             Text("Settings", style = MaterialTheme.typography.headlineSmall)
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Your Username:")
-            TextField(
-                value = usernameState,
-                onValueChange = {
-                    usernameState = it
-                    onUsernameChanged(it.text)
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text("Your Username: $username")
+            Button(onClick = {
+                onUsernameChanged("")
+            }) {
+                Text("Change username")
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
