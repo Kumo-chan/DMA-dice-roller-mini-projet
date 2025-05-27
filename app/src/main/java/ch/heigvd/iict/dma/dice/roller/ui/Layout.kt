@@ -5,16 +5,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import ch.heigvd.iict.dma.dice.roller.opengl.MyGLSurfaceView
 
 class Layout {
 
     enum class Tab {
-        DICE_ROLLER, SETTINGS
+        DICE_ROLLER, SETTINGS, THREE_D_VIEW
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -23,7 +26,8 @@ class Layout {
         rollsResults: List<RollsResult>,
         onRollDice: (diceSize: Int, diceCount: Int) -> Unit,
         username: String = "User",
-        onUsernameChanged: (String) -> Unit = {}
+        onUsernameChanged: (String) -> Unit = {},
+        glSurfaceView: MyGLSurfaceView? = null
     ) {
         var selectedTab by remember { mutableStateOf(Tab.DICE_ROLLER) }
 
@@ -47,22 +51,36 @@ class Layout {
                         selected = selectedTab == Tab.SETTINGS,
                         onClick = { selectedTab = Tab.SETTINGS }
                     )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.ViewInAr, contentDescription = "3D View") },
+                        label = { Text("3D View") },
+                        selected = selectedTab == Tab.THREE_D_VIEW,
+                        onClick = { selectedTab = Tab.THREE_D_VIEW }
+                    )
                 }
             }
         ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .padding(paddingValues)
-                    .padding(16.dp)
                     .fillMaxSize()
             ) {
-                when (selectedTab) {
-                    Tab.DICE_ROLLER -> RollerTab(rollsResults, onRollDice)
-                    Tab.SETTINGS -> SettingsTab(
-                        username = username,
-                        onUsernameChanged = onUsernameChanged,
-                        rollsResults = rollsResults
-                    )
+                // First half of the screen for the tabs content
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(16.dp)
+                        .fillMaxWidth()
+                ) {
+                    when (selectedTab) {
+                        Tab.DICE_ROLLER -> RollerTab(rollsResults, onRollDice)
+                        Tab.SETTINGS -> SettingsTab(
+                            username = username,
+                            onUsernameChanged = onUsernameChanged,
+                            rollsResults = rollsResults
+                        )
+                        Tab.THREE_D_VIEW -> ThreeDViewTab(glSurfaceView)
+                    }
                 }
             }
         }
@@ -162,6 +180,21 @@ class Layout {
                     }
                 }
             }
+        }
+    }
+
+    @Composable
+    fun ThreeDViewTab(glSurfaceView: MyGLSurfaceView?) {
+        glSurfaceView?.let { surfaceView ->
+            AndroidView(
+                factory = { surfaceView },
+                modifier = Modifier.fillMaxSize()
+            )
+        } ?: Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = androidx.compose.ui.Alignment.Center
+        ) {
+            Text("3D View not available")
         }
     }
 
