@@ -73,7 +73,6 @@ class Layout {
                     .padding(paddingValues)
                     .fillMaxSize()
             ) {
-                // First half of the screen for the tabs content
                 Box(
                     modifier = Modifier
                         .weight(1f)
