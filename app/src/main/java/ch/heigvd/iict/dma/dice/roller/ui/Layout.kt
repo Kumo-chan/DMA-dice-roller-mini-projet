@@ -33,12 +33,12 @@ class Layout {
     fun MainLayout(
         rollsResults: List<RollsResult>,
         onRollDice: (diceSize: Int, diceCount: Int) -> Unit,
-        username: String = "User",
+        username: String = "",
         onUsernameChanged: (String) -> Unit = {},
         glSurfaceView: MyGLSurfaceView? = null
     ) {
         var selectedTab by remember { mutableStateOf(Tab.DICE_ROLLER) }
-
+        if (username.isBlank()) DisplayInputForNickname(username, onUsernameChanged)
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -238,5 +238,34 @@ class Layout {
                 }
             }
         }
+    }
+    @Composable
+    fun DisplayInputForNickname(username: String,
+                                onUsernameChanged: (String) -> Unit,
+                                ) {
+        var tempInput by remember { mutableStateOf("") }
+        var nickname by remember { mutableStateOf(TextFieldValue(username)) }
+        AlertDialog(
+            onDismissRequest = { },
+            confirmButton = {
+                Button(onClick = {
+                    if (tempInput.isNotBlank()) {
+                        onUsernameChanged(tempInput)
+                    }
+                }) {
+                    Text("Confirm")
+                }
+            },
+            title = { Text("Enter your nickname") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = tempInput,
+                        onValueChange = { tempInput = it },
+                        label = { Text("Nickname") }
+                    )
+                }
+            }
+        )
     }
 }

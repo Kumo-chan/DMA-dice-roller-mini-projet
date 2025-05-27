@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
     private val connectedDevices = mutableStateMapOf<String, String>()
     private val connectedEndpointIds = mutableSetOf<String>()
     //private val receivedMessages = mutableStateListOf<String>()
-    private var username = mutableStateOf("User")
+    private var username = mutableStateOf("")
 
     private val nearbyManager = NearbyManager(this)
     // Create permission launcher
